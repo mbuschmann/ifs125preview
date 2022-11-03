@@ -370,8 +370,8 @@ class Preview125(QtWidgets.QMainWindow):
         ys[l:-l] = 0.0+0j
         # calculate inverse fft of low pass filtered spc
         sfunc = lambda nu, cutoff: np.cos(np.pi*nu/(2*cutoff))**2
-        ys[:l] = ys[:l]*sfunc(x[:l], cutoff)
-        ys[-l:] = ys[-l:]*sfunc(x[-l:], cutoff)
+        ys[:l] = ys[:l]*sfunc(self.wvn[:l], self.config['cutoff'])
+        ys[-l:] = ys[-l:]*sfunc(self.wvn[-l:], self.config['cutoff'])
         self.ifg_s = np.fft.ifft(ys)
         
         
