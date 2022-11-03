@@ -4,6 +4,8 @@ refreshrate: 2 # refreshrate of the measurements in sec. It might not make sense
 
 cutoff: 300 # cm-1 , upper limit of low pass
 
+smoothing: 'hann' # or 'fft' ; method used to produce the smoothed ifg
+
 br: {
     ip: '10.10.0.1', # ip of the ifs
     # the preview command can be obtained from Opus: While running Check signal in the preferred preview mode, check menu Measure -> Optis Setup & Service -> Optic Communications and copy-paste the relevant command series here

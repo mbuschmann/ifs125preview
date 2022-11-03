@@ -337,7 +337,68 @@ class Preview125(QtWidgets.QMainWindow):
             data = requests.get('/'.join((self.url_ftir,data.text[i1+9:i2])))
             # read in opus format
             self.preview = ftsreader('', verbose=False, getifg=True, filemode='mem', streamdata=data.content)
-            self.calc_fft()
+            if self.config['smoothing']=='hann':
+                self.calc_hann()
+            elif self.config['smoothing']=='fft':
+                self.calc_fft()
+            else:
+                self.calc_spc()
+
+    def startpreview(self):
+        print('Check Signal')
+        self._timer1.start()
+            
+    def stoppreview(self):
+        print('Stop Measurements')
+        self._timer1.stop()
+        self.stop_measurement()
+    
+    def calc_spc(self):
+        self.spc = np.fft.fft(self.preview.ifg)
+        self.wvn = np.fft.fftfreq(int(len(self.spc)),0.5/self.preview.header['Instrument Parameters']['LWN'])[:int(len(self.spc)/2)]
+        self.ifg_s = self.ifg
+        
+    def calc_hann(self):
+        # get spc via complex fft of ifg
+        self.spc = np.fft.fft(self.preview.ifg)
+        # calculate wvn axis, LWN is taken from opus header info
+        self.wvn = np.fft.fftfreq(int(len(self.spc)),0.5/self.preview.header['Instrument Parameters']['LWN'])[:int(len(self.spc)/2)]
+        # determine index of cut-off wavenumber
+        l = len(self.wvn[self.wvn<self.config['cutoff']])
+        ys = self.spc.copy()
+        # set everything in spectrum between larger than cutoff wavenumber to complex 0, same at the end of the array (mirrored spc)
+        ys[l:-l] = 0.0+0j
+        # calculate inverse fft of low pass filtered spc
+        sfunc = lambda nu, cutoff: np.cos(np.pi*nu/(2*cutoff))**2
+        ys[:l] = ys[:l]*sfunc(x[:l], cutoff)
+        ys[-l:] = ys[-l:]*sfunc(x[-l:], cutoff)
+        self.ifg_s = np.fft.ifft(ys)
+        
+        
+    def calc_fft(self):
+        # get spc via complex fft of ifg
+        self.spc = np.fft.fft(self.preview.ifg)
+        # calculate wvn axis, LWN is taken from opus header info
+        self.wvn = np.fft.fftfreq(int(len(self.spc)),0.5/self.preview.header['Instrument Parameters']['LWN'])[:int(len(self.spc)/2)]
+        # determine index of cut-off wavenumber
+        l = len(self.wvn[self.wvn<self.config['cutoff']])
+        ys = self.spc.copy()
+        # set everything in spectrum between larger than cutoff wavenumber to complex 0, same at the end of the array (mirrored spc)
+        ys[l:-l] = 0.0+0j
+        # calculate inverse fft of low pass filtered spc
+        self.ifg_s = np.fft.ifft(ys)
+        
+    def _update(self):
+        # get measurement data
+        self.get_preview()
+        # update plots
+        y = np.abs(self.spc[10:int(len(self.spc)/2)])
+        self._line1.set_data((self.wvn[10:], y/np.max(y)))
+        self._line1.figure.canvas.draw()
+        self._line2.set_data((np.arange(len(self.preview.ifg)), self.preview.ifg/np.max(self.preview.ifg)))
+        self._line2.figure.canvas.draw()
+        self._line3.set_data((np.arange(len(self.preview.ifg)), self.ifg_s/np.max(self.ifg_s)/2))
+        self._line3.figure.canvas.draw()    
         
     def __init__(self):
         # init everyting
@@ -367,12 +428,12 @@ class Preview125(QtWidgets.QMainWindow):
         layout.addWidget(dynamic_canvas2)
         layout.addWidget(NavigationToolbar(dynamic_canvas2, self))
         self._dynamic_ax1 = dynamic_canvas1.figure.subplots()
-        self._dynamic_ax1.set_xlim(4000,11000)
+        self._dynamic_ax1.set_xlim(3000,11000)
         self._dynamic_ax1.set_ylim(0,1)
-        self._line1, = self._dynamic_ax1.plot(np.arange(4000), [1]*4000, 'b-')
+        self._line1, = self._dynamic_ax1.plot(np.linspace(3000,11000, 4000), np.ones(4000), 'b-')
         self._dynamic_ax2 = dynamic_canvas2.figure.subplots()
-        self._dynamic_ax1.set_xlim(0,4000)
-        self._dynamic_ax1.set_ylim(-1,1)
+        self._dynamic_ax2.set_xlim(0,4000)
+        self._dynamic_ax2.set_ylim(-1,1)
         self._line2, = self._dynamic_ax2.plot(np.arange(4000), [1]*4000, '-', color='gray')
         self._line3, = self._dynamic_ax2.plot(np.arange(4000), [1]*4000, 'k-')
         # Setup timer to repeat measurement cycle
@@ -393,40 +454,6 @@ class Preview125(QtWidgets.QMainWindow):
         self.stopButton.clicked.connect(self.stoppreview)
         self.stopButton.setToolTip('stop the timer and thus end preview measurements; Shortcut: [Esc]')
         layout.addWidget(self.stopButton)
-        
-    def startpreview(self):
-        print('Check Signal')
-        self._timer1.start()
-            
-    def stoppreview(self):
-        print('Stop Measurements')
-        self._timer1.stop()
-        self.stop_measurement()
-        
-    def calc_fft(self):
-        # get spc via complex fft of ifg
-        self.spc = np.fft.fft(self.preview.ifg)
-        # calculate wvn axis, LWN is taken from opus header info
-        self.wvn = np.fft.fftfreq(int(len(self.spc)),0.5/self.preview.header['Instrument Parameters']['LWN'])[:int(len(self.spc)/2)]
-        # determine index of cut-off wavenumber
-        l = len(self.wvn[self.wvn<self.config['cutoff']])
-        ys = self.spc.copy()
-        # set everything in spectrum between larger than cutoff wavenumber to complex 0, same at the end of the array (mirrored spc)
-        ys[l:-l] = 0.0+0j
-        # calculate inverse fft of low pass filtered spc
-        self.ifg_s = np.fft.ifft(ys)
-        
-    def _update(self):
-        # get measurement data
-        self.get_preview()
-        # update plots
-        y = np.abs(self.spc[10:int(len(self.spc)/2)])
-        self._line1.set_data((self.wvn[10:], y/np.max(y)))
-        self._line1.figure.canvas.draw()
-        self._line2.set_data((np.arange(len(self.preview.ifg)), self.preview.ifg/np.max(self.preview.ifg)))
-        self._line2.figure.canvas.draw()
-        self._line3.set_data((np.arange(len(self.preview.ifg)), self.ifg_s/np.max(self.ifg_s)/2))
-        self._line3.figure.canvas.draw()
     
 if __name__ == "__main__":
     qapp = QtWidgets.QApplication.instance()
