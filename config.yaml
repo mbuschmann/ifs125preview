@@ -2,9 +2,11 @@ selected_site: 'br' # choose instrument defined below
 
 refreshrate: 2 # refreshrate of the measurements in sec. It might not make sense to go too low, due to length of measurement and computational constraints
 
-cutoff: 300 # cm-1 , upper limit of low pass
+cutoff: 3800 # cm-1 , upper limit of low pass
 
 smoothing: 'hann' # or 'fft' ; method used to produce the smoothed ifg
+
+spc_plot_xlim: [3000, 11000]
 
 br: {
     ip: '10.10.0.1', # ip of the ifs
