@@ -306,8 +306,10 @@ class Preview125(QtWidgets.QMainWindow):
         return yamlcontent
      
     def start_measurement(self):
-        print('Sending measure command')
-        requests.get(self.url_measure)
+        if self.running:
+            print('Sending measure command')
+            requests.get(self.url_measure)
+        else: pass
 
     def stop_measurement(self):
         print('Sending stop command')
@@ -322,34 +324,39 @@ class Preview125(QtWidgets.QMainWindow):
         return status
     
     def get_preview(self):
-        # 
-        self.start_measurement()
-        status = 'SCN'
-        while status != 'IDL':
-            # repeat requests until IDL
-            status = self.get_status()
-        if status=='IDL':
-            # find download link
-            data = requests.get(self.data_htm)
-            i1 = data.text.find('A HREF=')
-            i2 = data.text.find('">', i1)
-            # download data from ifs
-            data = requests.get('/'.join((self.url_ftir,data.text[i1+9:i2])))
-            # read in opus format
-            self.preview = ftsreader('', verbose=False, getifg=True, filemode='mem', streamdata=data.content)
-            if self.config['smoothing']=='hann':
-                self.calc_hann()
-            elif self.config['smoothing']=='fft':
-                self.calc_fft()
-            else:
-                self.calc_spc()
-
+        if self.running:
+            # 
+            self.start_measurement()
+            status = 'SCN'
+            while status != 'IDL':
+                # repeat requests until IDL
+                status = self.get_status()
+            if status=='IDL':
+                # find download link
+                data = requests.get(self.data_htm)
+                i1 = data.text.find('A HREF=')
+                i2 = data.text.find('">', i1)
+                # download data from ifs
+                data = requests.get('/'.join((self.url_ftir,data.text[i1+9:i2])))
+                # read in opus format
+                self.preview = ftsreader('', verbose=False, getifg=True, filemode='mem', streamdata=data.content)
+                if self.config['smoothing']=='hann':
+                    self.calc_hann()
+                elif self.config['smoothing']=='fft':
+                    self.calc_fft()
+                else:
+                    self.calc_spc()
+        else:
+            pass
+        
     def startpreview(self):
         print('Check Signal')
+        self.running=True
         self._timer1.start()
             
     def stoppreview(self):
         print('Stop Measurements')
+        self.running=False
         self._timer1.stop()
         self.stop_measurement()
     
@@ -396,17 +403,19 @@ class Preview125(QtWidgets.QMainWindow):
         self.run +=1
         # update plots
         y = np.abs(self.spc[10:int(len(self.spc)/2)])
-        self._line1.set_data((self.wvn[10:], y))
+        self._line1.set_data((self.wvn[10:], y/np.max(y)))
         #if self.run == 2:
         #    self._dynamic_ax2.set_xlim(self.config['spc_plot_xlim'])
         #    self._dynamic_ax2.set_ylim(np.min(y)*1.2, np.max(y)*1.2)
         self._line1.figure.canvas.draw()
-        self._line2.set_data((np.arange(len(self.preview.ifg)), self.preview.ifg))
+        y1 = self.preview.ifg-np.mean(self.preview.ifg)
+        self._line2.set_data((np.arange(len(self.preview.ifg)), y1/np.max(np.abs(y1))))
         #if self.run == 2:
         #    #self._dynamic_ax2.set_xlim(0,4000)
         #    self._dynamic_ax2.set_ylim(np.min(self.preview.ifg)*1.2, np.max(self.preview.ifg)*1.2)
         self._line2.figure.canvas.draw()
-        self._line3.set_data((np.arange(len(self.preview.ifg)), self.ifg_s/np.max(self.ifg_s)))
+        y2 = self.ifg_s-np.mean(self.ifg_s[self.config['zpd_interval'][0]:self.config['zpd_interval'][1]])
+        self._line3.set_data((np.arange(len(self.preview.ifg)), y2/np.max(np.abs(y2[self.config['zpd_interval'][0]:self.config['zpd_interval'][1]]))))
         #if self.run == 2:
         #    #self._dynamic_ax2.set_xlim(0,4000)
         #    self._dynamic_ax3.set_ylim(np.min(self.ifg_s)*1.2, np.max(self.ifg_s)*1.2)
@@ -419,6 +428,8 @@ class Preview125(QtWidgets.QMainWindow):
         # define global variables              
         self.config = self.load_yaml('config.yaml')
         self.run = 0
+        self.running=False
+        self.npt = self.config['npt']
         self.site = self.config['selected_site']
         self.siteconfig = self.config[self.site]
         self.url_ftir = 'http://'+self.siteconfig['ip']
@@ -442,15 +453,15 @@ class Preview125(QtWidgets.QMainWindow):
         layout.addWidget(dynamic_canvas2)
         layout.addWidget(NavigationToolbar(dynamic_canvas2, self))
         self._dynamic_ax1 = dynamic_canvas1.figure.subplots()
-        #self._dynamic_ax1.set_xlim(3000,11000)
-        #self._dynamic_ax1.set_ylim(0,1)
-        self._line1, = self._dynamic_ax1.plot(np.linspace(3000, 11000, 4000), np.ones(4000), 'b-')
+        self._dynamic_ax1.set_xlim(self.config['spc_plot_xlim'])
+        self._dynamic_ax1.set_ylim(0,1)
+        self._line1, = self._dynamic_ax1.plot(np.linspace(3000, 11000, self.npt), np.zeros(self.npt), 'b-')
         self._dynamic_ax2 = dynamic_canvas2.figure.subplots()
         #self._dynamic_ax3 = self._dynamic_ax2.twinx()
-        #self._dynamic_ax2.set_xlim(0,4000)
-        #self._dynamic_ax2.set_ylim(-1,1)
-        self._line2, = self._dynamic_ax2.plot(np.arange(4000), np.ones(4000), '-', color='gray')
-        self._line3, = self._dynamic_ax2.plot(np.arange(4000), np.ones(4000), 'k-')
+        self._dynamic_ax2.set_xlim(self.config['zpd_interval'])
+        self._dynamic_ax2.set_ylim(-1,1)
+        self._line2, = self._dynamic_ax2.plot(np.arange(self.npt), np.zeros(self.npt), '-', color='gray')
+        self._line3, = self._dynamic_ax2.plot(np.arange(self.npt), np.zeros(self.npt), 'k-')
         # Setup timer to repeat measurement cycle
         self._timer1 = dynamic_canvas1.new_timer(self.config['refreshrate']*1000)
         self._timer1.add_callback(self._update)

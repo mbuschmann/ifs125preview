@@ -1,6 +1,6 @@
 selected_site: 'br' # choose instrument defined below
 
-refreshrate: 2 # refreshrate of the measurements in sec. It might not make sense to go too low, due to length of measurement and computational constraints
+refreshrate: 3 # refreshrate of the measurements in sec. It might not make sense to go too low, due to length of measurement and computational constraints
 
 cutoff: 3800 # cm-1 , upper limit of low pass
 
@@ -8,10 +8,14 @@ smoothing: 'hann' # or 'fft' ; method used to produce the smoothed ifg
 
 spc_plot_xlim: [3000, 11000]
 
+zpd_interval: [1700, 2300] # zoom to this index interval for zpd
+
+npt: 4000 # number of points in ifg (important for scaling the plot axes)
+
 br: {
     ip: '10.10.0.1', # ip of the ifs
     # the preview command can be obtained from Opus: While running Check signal in the preferred preview mode, check menu Measure -> Optis Setup & Service -> Optic Communications and copy-paste the relevant command series here
-    preview_commands: 'cmd.htm?WRK=3&AMD=7&UWN=1&ITC=0&CNM=Default&SNM=Bremen&SFM=cm%2d1%204000%2e0%2011000%2e0%20cm%2d1&DLY=0&DEL=0&RES=14.216020&SRC=104&LPF=10.0&HPF=0&BMS=1&APT=0x03E8&DTC=0x4041&VEL=10.0&AQM=0x4e44&HFW=15788.022000&LFW=10.000000&PHR=14.216020&SON=0&PGN=3&OPF=4&OF3=1&ADC=0&CMA=0&COR=0&CHN=1&SOT=0&NSS=1&RDX=0&TSR=0&GNS=1&REP=1&DLR=0',
+    preview_commands: 'cmd.htm?WRK=3&AMD=7&UWN=1&ITC=0&CNM=Default&SNM=Bremen&SFM=cm%2d1%204000%2e0%2011000%2e0%20cm%2d1&DLY=0&DEL=0&RES=14.216020&SRC=104&LPF=10.0&HPF=0&BMS=1&APT=0x07D0&DTC=0x4041&VEL=10.0&AQM=0x4e44&HFW=15788.022000&LFW=10.000000&PHR=14.216020&SON=0&PGN=3&OPF=4&OF3=1&ADC=0&CMA=0&COR=0&CHN=1&SOT=0&NSS=1&RDX=0&TSR=0&GNS=1&REP=1&DLR=0',
     # APT=0x07D0 : 2mm ; APT=0x03E8 : 1 mm
     # shutdown commands will be sent to instrument, but no response is displayed when pressing 'Stop Measurement'. Use e.g. to switch off lamp, etc.
     shutdown_commands: 'cmd.htm?WRK=3&AMD=7&UWN=1&ITC=0&CNM=Default&SNM=Bremen&SFM=cm%2d1%204000%2e0%2011000%2e0%20cm%2d1&DLY=0&DEL=0&RES=14.216020&SRC=0&LPF=10.0&HPF=0&BMS=1&APT=0x03E8&DTC=0x4041&VEL=10.0&AQM=0x4e44&HFW=15788.022000&LFW=10.000000&PHR=14.216020&SON=0&PGN=3&OPF=4&OF3=1&ADC=0&CMA=0&COR=0&CHN=1&SOT=0&NSS=1&RDX=0&TSR=0&GNS=1&REP=1&DLR=0',
