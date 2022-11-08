@@ -11,7 +11,7 @@ Date: 2022/11/3
 
 from __future__ import print_function, division
 import sys, yaml, requests, struct, io
-from PyQt5.QtWidgets import QPushButton
+from PyQt5.QtWidgets import QPushButton, QCheckBox
 from matplotlib.backends.backend_qt5agg import FigureCanvas
 from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as NavigationToolbar
 from matplotlib.figure import Figure
@@ -408,19 +408,32 @@ class Preview125(QtWidgets.QMainWindow):
         #    self._dynamic_ax2.set_xlim(self.config['spc_plot_xlim'])
         #    self._dynamic_ax2.set_ylim(np.min(y)*1.2, np.max(y)*1.2)
         self._line1.figure.canvas.draw()
-        y1 = self.preview.ifg-np.mean(self.preview.ifg)
-        self._line2.set_data((np.arange(len(self.preview.ifg)), y1/np.max(np.abs(y1))))
+        if self.scaledifgaxes:
+            y1 = self.preview.ifg-np.mean(self.preview.ifg)
+            self._line2.set_data((np.arange(len(self.preview.ifg)), y1/np.max(np.abs(y1))))
+        else:
+            self._line2.set_data((np.arange(len(self.preview.ifg)), self.preview.ifg))            
         #if self.run == 2:
         #    #self._dynamic_ax2.set_xlim(0,4000)
         #    self._dynamic_ax2.set_ylim(np.min(self.preview.ifg)*1.2, np.max(self.preview.ifg)*1.2)
         self._line2.figure.canvas.draw()
-        y2 = self.ifg_s-np.mean(self.ifg_s[self.config['zpd_interval'][0]:self.config['zpd_interval'][1]])
-        self._line3.set_data((np.arange(len(self.preview.ifg)), y2/np.max(np.abs(y2[self.config['zpd_interval'][0]:self.config['zpd_interval'][1]]))))
+        if self.scaledifgaxes:
+            y2 = self.ifg_s-np.mean(self.ifg_s[self.config['zpd_interval'][0]:self.config['zpd_interval'][1]])
+            self._line3.set_data((np.arange(len(self.preview.ifg)), y2/np.max(np.abs(y2[self.config['zpd_interval'][0]:self.config['zpd_interval'][1]]))))
+        else:
+            self._line3.set_data((np.arange(len(self.preview.ifg)), self.ifg_s))
         #if self.run == 2:
         #    #self._dynamic_ax2.set_xlim(0,4000)
         #    self._dynamic_ax3.set_ylim(np.min(self.ifg_s)*1.2, np.max(self.ifg_s)*1.2)
         self._line3.figure.canvas.draw()
         
+    def clickBox(self, b):
+        if b.isChecked() == True:
+            self.scaledifgaxes = True
+            print('IFG y-axis scaling: ON')
+        else:
+            self.scaledifgaxes = False
+            print('IFG y-axis scaling: OFF')
         
     def __init__(self):
         # init everyting
@@ -439,24 +452,33 @@ class Preview125(QtWidgets.QMainWindow):
         self.data_htm = '/'.join((self.url_ftir, 'datafile.htm'))
         self.title = '125HR Preview Idle Mode'
         self.setWindowTitle(self.title)
+        self.resize(800, 700)
         #
         #
         self._main = QtWidgets.QWidget()
         self.setCentralWidget(self._main)
         layout = QtWidgets.QVBoxLayout(self._main)
-
         # setup matplotlib canvases
         dynamic_canvas1 = FigureCanvas(Figure(figsize=(5, 3)))
         layout.addWidget(NavigationToolbar(dynamic_canvas1, self))
         layout.addWidget(dynamic_canvas1)
+        #
+        self.box = QCheckBox('IFG y-axis scaled',self)
+        self.box.setChecked(True)
+        self.scaledifgaxes = True
+        self.box.stateChanged.connect(lambda : self.clickBox(self.box))
+        layout.addWidget(self.box)
+        #
         dynamic_canvas2 = FigureCanvas(Figure(figsize=(5, 3)))
         layout.addWidget(dynamic_canvas2)
         layout.addWidget(NavigationToolbar(dynamic_canvas2, self))
         self._dynamic_ax1 = dynamic_canvas1.figure.subplots()
+        self._dynamic_ax1.set_title('Spectrum preview')
         self._dynamic_ax1.set_xlim(self.config['spc_plot_xlim'])
         self._dynamic_ax1.set_ylim(0,1)
         self._line1, = self._dynamic_ax1.plot(np.linspace(3000, 11000, self.npt), np.zeros(self.npt), 'b-')
         self._dynamic_ax2 = dynamic_canvas2.figure.subplots()
+        self._dynamic_ax2.set_title('Raw and Smoothed Interferogram preview')
         #self._dynamic_ax3 = self._dynamic_ax2.twinx()
         self._dynamic_ax2.set_xlim(self.config['zpd_interval'])
         self._dynamic_ax2.set_ylim(-1,1)
