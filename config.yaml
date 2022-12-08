@@ -2,15 +2,17 @@ selected_site: 'br' # choose instrument defined below
 
 refreshrate: 3 # refreshrate of the measurements in sec. It might not make sense to go too low, due to length of measurement and computational constraints
 
-cutoff: 3800 # cm-1 , upper limit of low pass
+cutoff: 3700 # cm-1 , upper limit of low pass for smoothing the ifg
 
 smoothing: 'hann' # or 'fft' ; method used to produce the smoothed ifg
+
+lwn: 15798.022 # cm-1 , laser wavenumber
 
 spc_plot_xlim: [3000, 11000]
 
 zpd_interval: [1700, 2300] # zoom to this index interval for zpd
 
-npt: 4000 # number of points in ifg (important for scaling the plot axes)
+npt: 4000 # number of ifg points to be used around zpd
 
 br: {
     ip: '10.10.0.1', # ip of the ifs

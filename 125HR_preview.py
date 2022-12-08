@@ -18,6 +18,7 @@ from matplotlib.figure import Figure
 import numpy as np
 
 from matplotlib.backends.qt_compat import QtWidgets
+import matplotlib.pyplot as plt
 
 
 class ftsreader():
@@ -199,7 +200,7 @@ class ftsreader():
         self.log.append('Getting data blocks')
         yax = np.array(self.get_block(self.search_block(block)['offset'], self.search_block(block)['length']))
         #print(block)
-        if block == 'Data Block IgSm':
+        if block == 'Data Block IgSm' or block == 'Data Block':
             self.log.append('Getting ifg data block')
             # crude estimate of opd axis, only for illustratiion purposes, zpd's not included in calculation, and triangular apod. assumption -> 0.9
             xax = np.linspace(0,2*0.9/float(self.header['Acquisition Parameters']['RES']), len(yax))
@@ -293,17 +294,49 @@ class ftsreader():
             self.log.append('Problem with '+str(e))
             print('Error while processing '+path+' ... check self.log or do self.print_log()')
 
+def load_yaml(yamlfile):
+    # load config file
+    with open(yamlfile, 'r') as f:
+        yamlcontent = yaml.safe_load(f)
+    return yamlcontent
+
+def smooth_ifg(o, lwn=15798.022, cutoff=3700, l0=4000):
+    pkl = o.header['Instrument Parameters']['PKL']
+    # zero ifg
+    ifg0 = o.ifg[int(pkl-l0/2):int(pkl+l0/2)]
+    ifgz = ifg0-np.median(ifg0)
+    p = 5 # percent apodization region at beginning and end of IFG
+    l = int(l0*p/100.0)
+    # create hanning apodization function and apply to ifg
+    a1 = np.ones(l0)
+    a1[:l] = ((np.cos(np.pi*np.arange(l)/l)+1)**2/4)[::-1]
+    a1[-l:] = ((np.cos(np.pi*np.arange(l)/l)+1)**2/4)
+    ifga = ifgz*a1
+    # get spc via complex fft of ifg
+    spc = np.fft.fft(ifga)
+    # calculate wvn axis, LWN is taken from opus header info
+    wvn = np.fft.fftfreq(int(len(spc)),0.5/lwn)[:int(len(spc)/2)]
+    # determine index of cut-off wavenumber
+    l = len(wvn[wvn<cutoff])
+    ys = spc.copy()
+    # set everything in spectrum between larger than cutoff wavenumber to complex 0, same at the end of the array (mirrored spc)
+    #ys[l:-l] = 0.0+0j
+    # define and apply Hann window function
+    sfunc = lambda nu, cutoff: np.cos(np.pi*nu/(2*cutoff))**2
+    a2 = np.ones(len(ys))*(0+0j)
+    a2[:l] = sfunc(wvn[:l], cutoff)
+    # apply to mirrored part of spc as well. careful to use the correct order of wvn here
+    a2[-l:] = sfunc(wvn[:l][::-1], cutoff)
+    # apply apodization
+    ys = a2*ys
+    # calculate inverse fft of apodized spc, discarding imaginary part of reverse fft
+    return np.fft.ifft(ys).real, ys, a1, wvn
+
 class Preview125(QtWidgets.QMainWindow):
     """ A preview of measurements with the IFS125 in idle mode. Similar to the common Check Signal 
     functionality, but with control of the ifg and header data.
     
     ! Before usage: Adjust config.yaml to your situation !"""
-    
-    def load_yaml(self, yamlfile):
-        # load config file
-        with open(yamlfile, 'r') as f:
-            yamlcontent = yaml.safe_load(f)
-        return yamlcontent
      
     def start_measurement(self):
         if self.running:
@@ -340,12 +373,9 @@ class Preview125(QtWidgets.QMainWindow):
                 data = requests.get('/'.join((self.url_ftir,data.text[i1+9:i2])))
                 # read in opus format
                 self.preview = ftsreader('', verbose=False, getifg=True, filemode='mem', streamdata=data.content)
-                if self.config['smoothing']=='hann':
-                    self.calc_hann()
-                elif self.config['smoothing']=='fft':
-                    self.calc_fft()
-                else:
-                    self.calc_spc()
+                self.ifgs, self.spc_apodized, self.apo, self.apo_wvn = smooth_ifg(self.preview, lwn=self.config['lwn'],  cutoff=self.config['cutoff'], l0=self.config['npt'])
+                self.calc_spc()
+            else: pass
         else:
             pass
         
@@ -364,39 +394,15 @@ class Preview125(QtWidgets.QMainWindow):
         self.spc = np.fft.fft(self.preview.ifg)
         self.wvn = np.fft.fftfreq(int(len(self.spc)),0.5/self.preview.header['Instrument Parameters']['LWN'])[:int(len(self.spc)/2)]
         self.ifg_s = self.ifg
-        
-    def calc_hann(self):
-        # get spc via complex fft of ifg
-        self.spc = np.fft.fft(self.preview.ifg)
-        # calculate wvn axis, LWN is taken from opus header info
-        self.wvn = np.fft.fftfreq(int(len(self.spc)),0.5/self.preview.header['Instrument Parameters']['LWN'])[:int(len(self.spc)/2)]
-        # determine index of cut-off wavenumber
-        l = len(self.wvn[self.wvn<self.config['cutoff']])
-        ys = self.spc.copy()
-        # set everything in spectrum between larger than cutoff wavenumber to complex 0, same at the end of the array (mirrored spc)
-        ys[l:-l] = 0.0+0j
-        # define and apply Hann window function
-        sfunc = lambda nu, cutoff: np.cos(np.pi*nu/(2*cutoff))**2
-        ys[:l] = ys[:l]*sfunc(self.wvn[:l], self.config['cutoff'])
-        # apply to mirrored part of spc as well. careful to use the correct order of wvn here
-        ys[-l:] = ys[-l:]*sfunc(self.wvn[:l][::-1], self.config['cutoff'])
-        # calculate inverse fft of apodized spc
-        self.ifg_s = np.fft.ifft(ys)
-        
-        
-    def calc_fft(self):
-        # get spc via complex fft of ifg
-        self.spc = np.fft.fft(self.preview.ifg)
-        # calculate wvn axis, LWN is taken from opus header info
-        self.wvn = np.fft.fftfreq(int(len(self.spc)),0.5/self.preview.header['Instrument Parameters']['LWN'])[:int(len(self.spc)/2)]
-        # determine index of cut-off wavenumber
-        l = len(self.wvn[self.wvn<self.config['cutoff']])
-        ys = self.spc.copy()
-        # set everything in spectrum between larger than cutoff wavenumber to complex 0, same at the end of the array (mirrored spc)
-        ys[l:-l] = 0.0+0j
-        # calculate inverse fft of low pass filtered spc
-        self.ifg_s = np.fft.ifft(ys)
-        
+    
+    def zpd(self):
+        # use peak location from header
+        self.zpdindex = self.preview.header['Instrument Parameters']['PKL']
+
+    def zpd_minmax(self):
+        # using mean between indices of max and min values of ifg
+        self.zpdindex = int(round(np.mean([np.argmin(self.preview.ifg), np.argmax(self.preview.ifg)]))) 
+
     def _update(self):
         # get measurement data
         self.get_preview()
@@ -439,7 +445,7 @@ class Preview125(QtWidgets.QMainWindow):
         # init everyting
         super().__init__()
         # define global variables              
-        self.config = self.load_yaml('config.yaml')
+        self.config = load_yaml('config.yaml')
         self.run = 0
         self.running=False
         self.npt = self.config['npt']
@@ -464,8 +470,8 @@ class Preview125(QtWidgets.QMainWindow):
         layout.addWidget(dynamic_canvas1)
         #
         self.box = QCheckBox('IFG y-axis scaled',self)
-        self.box.setChecked(True)
-        self.scaledifgaxes = True
+        self.box.setChecked(False)
+        self.scaledifgaxes = False
         self.box.stateChanged.connect(lambda : self.clickBox(self.box))
         layout.addWidget(self.box)
         #
@@ -504,17 +510,42 @@ class Preview125(QtWidgets.QMainWindow):
         layout.addWidget(self.stopButton)
     
 if __name__ == "__main__":
-    qapp = QtWidgets.QApplication.instance()
-    if not qapp:
-        qapp = QtWidgets.QApplication(sys.argv)
-    app = Preview125()
-    app.show()
-    app.activateWindow()
-    app.raise_()
-    qapp.exec()
-
-
-
+    if len(sys.argv)==1:
+        qapp = QtWidgets.QApplication.instance()
+        if not qapp:
+            qapp = QtWidgets.QApplication(sys.argv)
+        app = Preview125()
+        app.show()
+        app.activateWindow()
+        app.raise_()
+        qapp.exec()
+    else:
+        fname = sys.argv[1]
+        config = load_yaml('config.yaml')
+        o = ftsreader(fname, getifg=True)
+        cutoff = config['cutoff']
+        pkl = o.header['Instrument Parameters']['PKL']
+        l0 = config['npt']
+        lwn = config['lwn']
+        ifg = o.ifg[int(pkl-l0/2):int(pkl+l0/2)]
+        ifgs, ys, a, wvn = smooth_ifg(o, lwn=lwn,  cutoff=config['cutoff'], l0=l0)
+        #
+        fig, (ax1, ax2) = plt.subplots(nrows=2, sharex=True)
+        ax1.set_title(fname+' FWD')
+        ax1.set_xlim(0,config['npt'])
+        ax1.plot(ifg, label='original ifg')
+        ax1.plot(a/10, label='apodization function (x 1/10)')
+        ax1.plot(a*(ifg-np.median(ifg)), label='hann apodized ifg')
+        ax1.plot(ifgs, label='smoothed ifg')
+        ax1.legend(loc='lower center', ncol=2)
+        #ax2.set_xlim(l0/2-fitwindowsize,l0/2+fitwindowsize)
+        ax2.set_ylim(-0.00002,0.0001)
+        ax2.plot(ifgs, label='smoothed ifg')
+        #ax2.plot(xfit, fitfunc(xfit, *popt), label='linear fit: DIP size = %.3E'%(np.max(np.abs(yfit-fitfunc(xfit, *popt)))))
+        ax2.set_xlabel('ifg index')
+        ax2.legend(loc='upper left', ncol=2)
+        #fig.savefig('DIP_live_test_'+fname+'_'+ifgn+'_ifg.png', dpi=200)
+        plt.show()
 
 
 
