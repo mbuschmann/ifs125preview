@@ -373,8 +373,11 @@ class Preview125(QtWidgets.QMainWindow):
                 data = requests.get('/'.join((self.url_ftir,data.text[i1+9:i2])))
                 # read in opus format
                 self.preview = ftsreader('', verbose=False, getifg=True, filemode='mem', streamdata=data.content)
-                self.ifgs, self.spc_apodized, self.apo, self.apo_wvn = smooth_ifg(self.preview, lwn=self.config['lwn'],  cutoff=self.config['cutoff'], l0=self.config['npt'])
-                self.calc_spc()
+                self.ifg_s, self.spc_apodized, self.apo, self.apo_wvn = smooth_ifg(self.preview, lwn=self.config['lwn'],  cutoff=self.config['cutoff'], l0=self.config['npt'])
+                #self.calc_spc()
+                #print('all 0? ', np.all(self.ifg_s==0))
+                self.spc = np.fft.fft(self.preview.ifg)
+                self.wvn = np.fft.fftfreq(int(len(self.spc)),0.5/self.preview.header['Instrument Parameters']['LWN'])[:int(len(self.spc)/2)]
             else: pass
         else:
             pass
@@ -393,7 +396,7 @@ class Preview125(QtWidgets.QMainWindow):
     def calc_spc(self):
         self.spc = np.fft.fft(self.preview.ifg)
         self.wvn = np.fft.fftfreq(int(len(self.spc)),0.5/self.preview.header['Instrument Parameters']['LWN'])[:int(len(self.spc)/2)]
-        self.ifg_s = self.ifg
+        self.ifg_s = self.preview.ifg
     
     def zpd(self):
         # use peak location from header
@@ -427,7 +430,7 @@ class Preview125(QtWidgets.QMainWindow):
             y2 = self.ifg_s-np.mean(self.ifg_s[self.config['zpd_interval'][0]:self.config['zpd_interval'][1]])
             self._line3.set_data((np.arange(len(self.preview.ifg)), y2/np.max(np.abs(y2[self.config['zpd_interval'][0]:self.config['zpd_interval'][1]]))))
         else:
-            self._line3.set_data((np.arange(len(self.preview.ifg)), self.ifg_s))
+            self._line3.set_data((np.arange(len(self.ifg_s)), self.ifg_s))
         #if self.run == 2:
         #    #self._dynamic_ax2.set_xlim(0,4000)
         #    self._dynamic_ax3.set_ylim(np.min(self.ifg_s)*1.2, np.max(self.ifg_s)*1.2)
@@ -469,11 +472,11 @@ class Preview125(QtWidgets.QMainWindow):
         layout.addWidget(NavigationToolbar(dynamic_canvas1, self))
         layout.addWidget(dynamic_canvas1)
         #
-        self.box = QCheckBox('IFG y-axis scaled',self)
-        self.box.setChecked(False)
+        #self.box = QCheckBox('IFG y-axis scaled',self)
+        #self.box.setChecked(False)
         self.scaledifgaxes = False
-        self.box.stateChanged.connect(lambda : self.clickBox(self.box))
-        layout.addWidget(self.box)
+        #self.box.stateChanged.connect(lambda : self.clickBox(self.box))
+        #layout.addWidget(self.box)
         #
         dynamic_canvas2 = FigureCanvas(Figure(figsize=(5, 3)))
         layout.addWidget(dynamic_canvas2)
