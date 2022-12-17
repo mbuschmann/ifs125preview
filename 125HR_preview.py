@@ -11,7 +11,7 @@ Date: 2022/11/3
 
 from __future__ import print_function, division
 import sys, yaml, requests, struct, io
-from PyQt5.QtWidgets import QPushButton, QCheckBox
+from PyQt5.QtWidgets import QPushButton, QLabel
 from matplotlib.backends.backend_qt5agg import FigureCanvas
 from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as NavigationToolbar
 from matplotlib.figure import Figure
@@ -305,7 +305,7 @@ def smooth_ifg(o, lwn=15798.022, cutoff=3700, l0=4000):
     # zero ifg
     ifg0 = o.ifg[int(pkl-l0/2):int(pkl+l0/2)]
     # scale the smoothed ifg later with the diff between max and min of original ifg
-    scale = np.max(ifg0)-np.min(ifg0)*1000
+    scale = (np.max(ifg0)-np.min(ifg0))/1000
     ifgz = ifg0-np.median(ifg0)
     p = 5 # percent apodization region at beginning and end of IFG
     l = int(l0*p/100.0)
@@ -343,12 +343,16 @@ class Preview125(QtWidgets.QMainWindow):
     def start_measurement(self):
         if self.running:
             print('Sending measure command')
+            self.label.setText("Sending measure command")
+            self.label.setStyleSheet("background-color: lightgreen")
             requests.get(self.url_measure)
         else: pass
 
     def stop_measurement(self):
         print('Sending stop command')
         requests.get(self.url_measurestop)
+        self.label.setText("Sent stop measure command")
+        self.label.setStyleSheet("background-color: orange")
 
     def get_status(self):
         # find status info in response to request to ifs
@@ -385,6 +389,13 @@ class Preview125(QtWidgets.QMainWindow):
                 # calc spc
                 self.spc = np.fft.fft(self.ifg)
                 self.wvn = np.fft.fftfreq(int(len(self.spc)),0.5/self.preview.header['Instrument Parameters']['LWN'])[:int(len(self.spc)/2)]
+                #
+                if np.abs(np.max(self.ifg_s))>=np.abs(np.min(self.ifg_s)):
+                    dip = np.max(self.ifg_s)
+                else:
+                    dip = np.min(self.ifg_s)
+                self.label.setText("DIP amplitude: %.4f ‰".format(dip))
+                self.label.setStyleSheet("background-color: white")
             else: pass
         else:
             pass
@@ -443,13 +454,13 @@ class Preview125(QtWidgets.QMainWindow):
         #    self._dynamic_ax3.set_ylim(np.min(self.ifg_s)*1.2, np.max(self.ifg_s)*1.2)
         self._line3.figure.canvas.draw()
         
-    def clickBox(self, b):
-        if b.isChecked() == True:
-            self.scaledifgaxes = True
-            print('IFG y-axis scaling: ON')
-        else:
-            self.scaledifgaxes = False
-            print('IFG y-axis scaling: OFF')
+    #def clickBox(self, b):
+    #    if b.isChecked() == True:
+    #        self.scaledifgaxes = True
+    #        print('IFG y-axis scaling: ON')
+    #    else:
+    #        self.scaledifgaxes = False
+    #        print('IFG y-axis scaling: OFF')
         
     def __init__(self):
         # init everyting
@@ -474,6 +485,10 @@ class Preview125(QtWidgets.QMainWindow):
         self._main = QtWidgets.QWidget()
         self.setCentralWidget(self._main)
         layout = QtWidgets.QVBoxLayout(self._main)
+        # setup label
+        self.label = QLabel('Press Check Signal to start', self)
+        elf.label.setStyleSheet("background-color: orange")
+        layout.addWidget(self.label)
         # setup matplotlib canvases
         dynamic_canvas1 = FigureCanvas(Figure(figsize=(5, 3)))
         layout.addWidget(NavigationToolbar(dynamic_canvas1, self))

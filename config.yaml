@@ -10,7 +10,8 @@ lwn: 15798.022 # cm-1 , laser wavenumber
 
 spc_plot_xlim: [3000, 11000]
 
-zpd_interval: [1700, 2300] # zoom to this index interval for zpd
+# removed, automatically display only +- npt/2 around zpd
+#zpd_interval: [1700, 2300] # zoom to this index interval for zpd
 
 npt: 3800 # number of ifg points to be used around zpd
 
