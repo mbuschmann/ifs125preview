@@ -377,9 +377,9 @@ class Preview125(QtWidgets.QMainWindow):
                 self.preview = ftsreader('', verbose=False, getifg=True, filemode='mem', streamdata=data.content)
                 # preselect ifg around zpd
                 self.zpd()
-                self.ifg = self.preview.ifg[int(self.zpdindex-self.config[npt]/2):int(self.zpdindex+self.config[npt]/2)]
+                self.ifg = self.preview.ifg[int(self.zpdindex-self.npt/2):int(self.zpdindex+self.npt/2)]
                 # get smoothed ifg
-                self.ifg_s, self.spc_apodized, self.apo, self.apo_wvn = smooth_ifg(self.preview, lwn=self.config['lwn'],  cutoff=self.config['cutoff'], l0=self.config['npt'])
+                self.ifg_s, self.spc_apodized, self.apo, self.apo_wvn = smooth_ifg(self.preview, lwn=self.config['lwn'],  cutoff=self.config['cutoff'], l0=self.npt)
                 #self.calc_spc()
                 #print('all 0? ', np.all(self.ifg_s==0))
                 # calc spc
@@ -494,9 +494,9 @@ class Preview125(QtWidgets.QMainWindow):
         self._dynamic_ax1.set_ylim(0,1)
         self._line1, = self._dynamic_ax1.plot(np.linspace(3000, 11000, self.npt), np.zeros(self.npt), 'b-')
         self._dynamic_ax2 = dynamic_canvas2.figure.subplots()
-        self._dynamic_ax2.set_title('Raw Interferogram preview')
+        self._dynamic_ax2.set_title('Raw and smoothed Interferogram preview')
         self._dynamic_ax3 = self._dynamic_ax2.twinx()
-        self._dynamic_ax3.set_title('Smoothed Interferogram preview')
+        #self._dynamic_ax3.set_title('Smoothed Interferogram preview')
         self._dynamic_ax2.set_xlim(self.config['zpd_interval'])
         self._dynamic_ax2.set_ylim(-1,1)
         self._line2, = self._dynamic_ax2.plot(np.arange(self.npt), np.zeros(self.npt), '-', color='grey')
