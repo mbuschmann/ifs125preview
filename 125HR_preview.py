@@ -305,7 +305,7 @@ def smooth_ifg(o, lwn=15798.022, cutoff=3700, l0=4000):
     # zero ifg
     ifg0 = o.ifg[int(pkl-l0/2):int(pkl+l0/2)]
     # scale the smoothed ifg later with the diff between max and min of original ifg
-    scale = np.max(ifg0)-np.min(ifg0)
+    scale = np.max(ifg0)-np.min(ifg0)*1000
     ifgz = ifg0-np.median(ifg0)
     p = 5 # percent apodization region at beginning and end of IFG
     l = int(l0*p/100.0)
@@ -497,8 +497,10 @@ class Preview125(QtWidgets.QMainWindow):
         self._dynamic_ax2.set_title('Raw and smoothed Interferogram preview')
         self._dynamic_ax3 = self._dynamic_ax2.twinx()
         #self._dynamic_ax3.set_title('Smoothed Interferogram preview')
-        self._dynamic_ax2.set_xlim(self.config['zpd_interval'])
-        self._dynamic_ax2.set_ylim(-1,1)
+        #self._dynamic_ax2.set_xlim(self.config['zpd_interval'])
+        #self._dynamic_ax2.set_ylim(-1,1)
+        self._dynamic_ax2.set_ylabel('Original IFG [Bruker units]')
+        self._dynamic_ax3.set_ylabel('Smoothed IFG / (max - min)(IFG) * 1e3]')
         self._line2, = self._dynamic_ax2.plot(np.arange(self.npt), np.zeros(self.npt), '-', color='grey')
         self._line3, = self._dynamic_ax3.plot(np.arange(self.npt), np.zeros(self.npt), 'k-')
         # Setup timer to repeat measurement cycle
