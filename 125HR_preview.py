@@ -304,6 +304,8 @@ def smooth_ifg(o, lwn=15798.022, cutoff=3700, l0=4000):
     pkl = o.header['Instrument Parameters']['PKL']
     # zero ifg
     ifg0 = o.ifg[int(pkl-l0/2):int(pkl+l0/2)]
+    # scale the smoothed ifg later with the diff between max and min of original ifg
+    scale = np.max(ifg0)-np.min(ifg0)
     ifgz = ifg0-np.median(ifg0)
     p = 5 # percent apodization region at beginning and end of IFG
     l = int(l0*p/100.0)
@@ -330,7 +332,7 @@ def smooth_ifg(o, lwn=15798.022, cutoff=3700, l0=4000):
     # apply apodization
     ys = a2*ys
     # calculate inverse fft of apodized spc, discarding imaginary part of reverse fft
-    return np.fft.ifft(ys).real, ys, a1, wvn
+    return np.fft.ifft(ys).real/scale, ys, a1, wvn
 
 class Preview125(QtWidgets.QMainWindow):
     """ A preview of measurements with the IFS125 in idle mode. Similar to the common Check Signal 
@@ -373,10 +375,15 @@ class Preview125(QtWidgets.QMainWindow):
                 data = requests.get('/'.join((self.url_ftir,data.text[i1+9:i2])))
                 # read in opus format
                 self.preview = ftsreader('', verbose=False, getifg=True, filemode='mem', streamdata=data.content)
+                # preselect ifg around zpd
+                self.zpd()
+                self.ifg = self.preview.ifg[int(self.zpdindex-self.config[npt]/2):int(self.zpdindex+self.config[npt]/2)]
+                # get smoothed ifg
                 self.ifg_s, self.spc_apodized, self.apo, self.apo_wvn = smooth_ifg(self.preview, lwn=self.config['lwn'],  cutoff=self.config['cutoff'], l0=self.config['npt'])
                 #self.calc_spc()
                 #print('all 0? ', np.all(self.ifg_s==0))
-                self.spc = np.fft.fft(self.preview.ifg)
+                # calc spc
+                self.spc = np.fft.fft(self.ifg)
                 self.wvn = np.fft.fftfreq(int(len(self.spc)),0.5/self.preview.header['Instrument Parameters']['LWN'])[:int(len(self.spc)/2)]
             else: pass
         else:
@@ -412,25 +419,25 @@ class Preview125(QtWidgets.QMainWindow):
         self.run +=1
         # update plots
         y = np.abs(self.spc[10:int(len(self.spc)/2)])
-        self._line1.set_data((self.wvn[10:], y/np.max(y)))
+        self._line1.set_data(self.wvn[10:], y)
         #if self.run == 2:
         #    self._dynamic_ax2.set_xlim(self.config['spc_plot_xlim'])
         #    self._dynamic_ax2.set_ylim(np.min(y)*1.2, np.max(y)*1.2)
         self._line1.figure.canvas.draw()
-        if self.scaledifgaxes:
-            y1 = self.preview.ifg-np.mean(self.preview.ifg)
-            self._line2.set_data((np.arange(len(self.preview.ifg)), y1/np.max(np.abs(y1))))
-        else:
-            self._line2.set_data((np.arange(len(self.preview.ifg)), self.preview.ifg))            
+        #if self.scaledifgaxes:
+        #    y1 = self.ifg-np.mean(self.ifg)
+        #    self._line2.set_data((np.arange(len(self.ifg)), y1/np.max(np.abs(y1))))
+        #else:
+        self._line2.set_data((np.arange(len(self.ifg)), self.ifg))            
         #if self.run == 2:
         #    #self._dynamic_ax2.set_xlim(0,4000)
         #    self._dynamic_ax2.set_ylim(np.min(self.preview.ifg)*1.2, np.max(self.preview.ifg)*1.2)
         self._line2.figure.canvas.draw()
-        if self.scaledifgaxes:
-            y2 = self.ifg_s-np.mean(self.ifg_s[self.config['zpd_interval'][0]:self.config['zpd_interval'][1]])
-            self._line3.set_data((np.arange(len(self.preview.ifg)), y2/np.max(np.abs(y2[self.config['zpd_interval'][0]:self.config['zpd_interval'][1]]))))
-        else:
-            self._line3.set_data((np.arange(len(self.ifg_s)), self.ifg_s))
+        #if self.scaledifgaxes:
+        #    y2 = self.ifg_s-np.mean(self.ifg_s[self.config['zpd_interval'][0]:self.config['zpd_interval'][1]])
+        #    self._line3.set_data((np.arange(len(self.preview.ifg)), y2/np.max(np.abs(y2[self.config['zpd_interval'][0]:self.config['zpd_interval'][1]]))))
+        #else:
+        self._line3.set_data((np.arange(len(self.ifg_s)), self.ifg_s))
         #if self.run == 2:
         #    #self._dynamic_ax2.set_xlim(0,4000)
         #    self._dynamic_ax3.set_ylim(np.min(self.ifg_s)*1.2, np.max(self.ifg_s)*1.2)
