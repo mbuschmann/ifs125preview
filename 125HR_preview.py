@@ -394,7 +394,7 @@ class Preview125(QtWidgets.QMainWindow):
                     dip = np.max(self.ifg_s)
                 else:
                     dip = np.min(self.ifg_s)
-                self.label.setText("DIP amplitude: %.4f ‰".format(dip))
+                self.label.setText(f"DIP amplitude: {dip:.5f} ‰")
                 self.label.setStyleSheet("background-color: white")
             else: pass
         else:
@@ -487,7 +487,7 @@ class Preview125(QtWidgets.QMainWindow):
         layout = QtWidgets.QVBoxLayout(self._main)
         # setup label
         self.label = QLabel('Press Check Signal to start', self)
-        elf.label.setStyleSheet("background-color: orange")
+        self.label.setStyleSheet("background-color: orange")
         layout.addWidget(self.label)
         # setup matplotlib canvases
         dynamic_canvas1 = FigureCanvas(Figure(figsize=(5, 3)))
