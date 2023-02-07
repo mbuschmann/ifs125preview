@@ -304,9 +304,10 @@ def smooth_ifg(o, lwn=15798.022, cutoff=3700, l0=4000):
     pkl = o.header['Instrument Parameters']['PKL']
     # zero ifg
     ifg0 = o.ifg[int(pkl-l0/2):int(pkl+l0/2)]
+    offset = np.median(o.ifg[int(pkl-l0/20):int(pkl+l0/20)])
+    ifgz = ifg0-offset
     # scale the smoothed ifg later with the diff between max and min of original ifg
-    scale = (np.max(ifg0)-np.min(ifg0))/1000
-    ifgz = ifg0-np.median(ifg0)
+    scale = 1/(np.max(ifgz[int(l0/2-l0/20):int(l0/2+l0/20)])-np.min(ifgz[int(l0/2-l0/20):int(l0/2+l0/20)]))
     p = 5 # percent apodization region at beginning and end of IFG
     l = int(l0*p/100.0)
     # create hanning apodization function and apply to ifg
@@ -332,7 +333,7 @@ def smooth_ifg(o, lwn=15798.022, cutoff=3700, l0=4000):
     # apply apodization
     ys = a2*ys
     # calculate inverse fft of apodized spc, discarding imaginary part of reverse fft
-    return np.fft.ifft(ys).real/scale, ys, a1, wvn
+    return np.fft.ifft(ys).real*scale+offset, ys, a1, wvn
 
 class Preview125(QtWidgets.QMainWindow):
     """ A preview of measurements with the IFS125 in idle mode. Similar to the common Check Signal 
@@ -567,7 +568,7 @@ if __name__ == "__main__":
         ax1.plot(ifgs, label='smoothed ifg')
         ax1.legend(loc='lower center', ncol=2)
         #ax2.set_xlim(l0/2-fitwindowsize,l0/2+fitwindowsize)
-        ax2.set_ylim(-0.00002,0.0001)
+        #ax2.set_ylim(-0.00002,0.0001)
         ax2.plot(ifgs, label='smoothed ifg')
         #ax2.plot(xfit, fitfunc(xfit, *popt), label='linear fit: DIP size = %.3E'%(np.max(np.abs(yfit-fitfunc(xfit, *popt)))))
         ax2.set_xlabel('ifg index')
