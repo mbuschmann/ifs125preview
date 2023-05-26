@@ -18,8 +18,24 @@ npt: 2000 # number of ifg points to be used around zpd
 br: {
     ip: '10.10.0.1', # ip of the ifs
     # the preview command can be obtained from Opus: While running Check signal in the preferred preview mode, check menu Measure -> Optis Setup & Service -> Optic Communications and copy-paste the relevant command series here
-    preview_commands: 'cmd.htm?WRK=3&AMD=7&UWN=1&ITC=0&CNM=Default&SNM=Bremen&SFM=cm%2d1%204000%2e0%2011000%2e0%20cm%2d1&DLY=0&DEL=0&RES=14.216020&SRC=104&LPF=10.0&HPF=0&BMS=1&APT=0x07D0&DTC=0x4041&VEL=10.0&AQM=0x4e44&HFW=15788.022000&LFW=10.000000&PHR=14.216020&SON=0&PGN=3&OPF=4&OF3=1&ADC=0&CMA=0&COR=0&CHN=1&SOT=0&NSS=1&RDX=0&TSR=0&GNS=1&REP=1&DLR=0',
-    # APT=0x07D0 : 2mm ; APT=0x03E8 : 1 mm
+    preview_commands: #'cmd.htm?WRK=3&AMD=7&UWN=1&ITC=0&CNM=Default&SNM=Bremen&SFM=cm%2d1%204000%2e0%2011000%2e0%20cm%2d1&DLY=0&DEL=0&RES=14.216020&SRC=104&LPF=10.0&HPF=0&BMS=1&APT=0x2710&DTC=0x4041&VEL=10.0&AQM=0x4e44&HFW=15788.022000&LFW=10.000000&PHR=14.216020&SON=0&PGN=3&OPF=4&OF3=1&ADC=0&CMA=0&COR=0&CHN=1&SOT=0&NSS=1&RDX=0&TSR=0&GNS=1&REP=1&DLR=0',
+    'cmd.htm?WRK=3&AMD=7&UWN=0&ITC=0&CNM=Default&SNM=Bremen&SFM=cm%2d1%204000%2e0%2011000%2e0%20cm%2d1&DLY=0&DEL=0&RES=14.216020&SRC=104&LPF=10.0&HPF=0&BMS=1&APT=0x1F40&DTC=0x4041&VEL=10.0&AQM=0x4e44&HFW=15788.022000&LFW=10.000000&PHR=14.216020&SON=0&PGN=3&OPF=8&OF3=5&ADC=0&CMA=0&COR=0&CHN=1&SOT=0&NSS=1&RDX=0&TSR=0&GNS=1&REP=1&DLR=0',    
+    # APT=500 : 0.5 mm
+    # APT=800 : 0.8 mm
+    # APT=0x03E8 : 1 mm
+    # APT=0x047E : 1.15 mm
+    # APT=0x0514 : 1.3 mm
+    # APT=0x05DC : 1.5 mm
+    # APT=0x06A4 : 1.7 mm
+    # APT=0x07D0 : 2 mm
+    # APT=0x09C4 : 2.5 mm
+    # APT=0x0C4E : 3.15 mm
+    # APT=0x0FA0 : 4 mm # lamp image too small
+    # APT=0x1388 : 5 mm # lamp image too small
+    # APT=0x189C : 6.3 mm # lamp image too small
+    # APT=0x1F40 : 8 mm # lamp image too small
+    # APT=0x2710 : 10 mm # lamp image too small
+    #
     # shutdown commands will be sent to instrument, but no response is displayed when pressing 'Stop Measurement'. Use e.g. to switch off lamp, etc.
     shutdown_commands: 'cmd.htm?WRK=3&AMD=7&UWN=1&ITC=0&CNM=Default&SNM=Bremen&SFM=cm%2d1%204000%2e0%2011000%2e0%20cm%2d1&DLY=0&DEL=0&RES=14.216020&SRC=0&LPF=10.0&HPF=0&BMS=1&APT=0x03E8&DTC=0x4041&VEL=10.0&AQM=0x4e44&HFW=15788.022000&LFW=10.000000&PHR=14.216020&SON=0&PGN=3&OPF=4&OF3=1&ADC=0&CMA=0&COR=0&CHN=1&SOT=0&NSS=1&RDX=0&TSR=0&GNS=1&REP=1&DLR=0',
     }

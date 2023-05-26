@@ -375,7 +375,7 @@ class Preview125(QtWidgets.QMainWindow):
         file , check = QFileDialog.getSaveFileName(None, "Save smoothed interferogram as ASCII file", "", "All Files (*)")
         if check and not self.running:
             print('Saving data in ', file)
-            with open(file, 'wb') as f:
+            with open(file, 'w') as f:
                 s = ''
                 for l in self.ifg_s:
                     s+=str(l)+'\n'
