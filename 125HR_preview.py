@@ -11,7 +11,7 @@ Date: 2022/11/3
 
 from __future__ import print_function, division
 import sys, yaml, requests, struct, io
-from PyQt5.QtWidgets import QPushButton, QLabel
+from PyQt5.QtWidgets import QPushButton, QLabel, QFileDialog
 from matplotlib.backends.backend_qt5agg import FigureCanvas
 from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as NavigationToolbar
 from matplotlib.figure import Figure
@@ -350,10 +350,41 @@ class Preview125(QtWidgets.QMainWindow):
         else: pass
 
     def stop_measurement(self):
-        print('Sending stop command')
-        requests.get(self.url_measurestop)
-        self.label.setText("Sent stop measure command")
+        print('Stopping measurements')
+        self.running = False
+        self._timer1.stop()
+        self.label.setText("Measurements stopped.")
         self.label.setStyleSheet("background-color: orange")
+
+    def shutdown_measurement(self):
+        print('Sending shutdown command')
+        requests.get(self.url_measureshutdown)
+        self.label.setText("Sent shutdown measure command")
+        self.label.setStyleSheet("background-color: orange")
+
+    def save_data_opus(self):
+        file , check = QFileDialog.getSaveFileName(None, "Save last recorded interferogram as OPUS file", "", "All Files (*)")
+        if check:
+            print('Saving data')
+            with open(file, 'wb') as f:
+                f.write(self.raw_ifg)
+        else:
+            print('Not saving anything. Still running = ', self.running)
+
+    def save_data(self):
+        file , check = QFileDialog.getSaveFileName(None, "Save smoothed interferogram as ASCII file", "", "All Files (*)")
+        if check and not self.running:
+            print('Saving data in ', file)
+            with open(file, 'wb') as f:
+                s = ''
+                for l in self.ifg_s:
+                    s+=str(l)+'\n'
+                f.write(s)
+        else: 
+            print('Not saving anything. Still running = ', self.running)
+        #requests.get(self.url_measureshutdown)
+        #self.label.setText("Sent shutdown measure command")
+        #self.label.setStyleSheet("background-color: orange")
 
     def get_status(self):
         # find status info in response to request to ifs
@@ -378,8 +409,9 @@ class Preview125(QtWidgets.QMainWindow):
                 i2 = data.text.find('">', i1)
                 # download data from ifs
                 data = requests.get('/'.join((self.url_ftir,data.text[i1+9:i2])))
+                self.raw_ifg = data.content
                 # read in opus format
-                self.preview = ftsreader('', verbose=False, getifg=True, filemode='mem', streamdata=data.content)
+                self.preview = ftsreader('', verbose=False, getifg=True, filemode='mem', streamdata=self.raw_ifg)
                 # preselect ifg around zpd
                 self.zpd()
                 self.ifg = self.preview.ifg[int(self.zpdindex-self.npt/2):int(self.zpdindex+self.npt/2)]
@@ -475,7 +507,7 @@ class Preview125(QtWidgets.QMainWindow):
         self.siteconfig = self.config[self.site]
         self.url_ftir = 'http://'+self.siteconfig['ip']
         self.url_measure = '/'.join((self.url_ftir, self.siteconfig['preview_commands']))
-        self.url_measurestop = '/'.join((self.url_ftir, self.siteconfig['shutdown_commands']))
+        self.url_measureshutdown = '/'.join((self.url_ftir, self.siteconfig['shutdown_commands']))
         self.stat_htm = '/'.join((self.url_ftir,'stat.htm'))
         self.data_htm = '/'.join((self.url_ftir, 'datafile.htm'))
         self.title = '125HR Preview Idle Mode'
@@ -537,7 +569,25 @@ class Preview125(QtWidgets.QMainWindow):
         self.stopButton.clicked.connect(self.stoppreview)
         self.stopButton.setToolTip('stop the timer and thus end preview measurements; Shortcut: [Esc]')
         layout.addWidget(self.stopButton)
-    
+        # save spectra
+        self.saveButton = QPushButton(self)
+        self.saveButton.setText('Save smoothed data (stop meas. first!)')
+        self.saveButton.setShortcut('Alt+S')
+        self.saveButton.clicked.connect(self.save_data)
+        self.saveButton.setToolTip('Save current IFG and smoothed spectrum to file; Shortcut: [Alt+S]')
+        layout.addWidget(self.saveButton)
+        self.saveButtono = QPushButton(self)
+        self.saveButtono.setText('Save interferogram (stop meas. first!)')
+        self.saveButtono.clicked.connect(self.save_data_opus)
+        self.saveButtono.setToolTip('Save current IFG and smoothed spectrum to file; Shortcut: [Alt+S]')
+        layout.addWidget(self.saveButtono)
+        # stop button
+        self.shutdownButton = QPushButton(self)
+        self.shutdownButton.setText('Send shutdown command (e.g. lamp off)')
+        self.shutdownButton.clicked.connect(self.shutdown_measurement)
+        self.shutdownButton.setToolTip('Send one last shudown command, defined in config.yaml')
+        layout.addWidget(self.shutdownButton)
+
 if __name__ == "__main__":
     if len(sys.argv)==1:
         qapp = QtWidgets.QApplication.instance()
