@@ -6,7 +6,7 @@ The program includes rudimentary FFT functionality and provides a smoothed (= lo
 to detect potential detector nonlinearity during alignment.
 
 Author: Matthias Buschmann, IUP Bremen
-Date: 2022/11/3
+Date: 2023/06/01
 """
 
 from __future__ import print_function, division
@@ -609,20 +609,34 @@ if __name__ == "__main__":
         ifg = o.ifg[int(pkl-l0/2):int(pkl+l0/2)]
         ifgs, ys, a, wvn = smooth_ifg(o, lwn=lwn,  cutoff=config['cutoff'], l0=l0)
         #
-        fig, (ax1, ax2) = plt.subplots(nrows=2, sharex=True)
-        ax1.set_title(fname+' FWD')
-        ax1.set_xlim(0,config['npt'])
-        ax1.plot(ifg, label='original ifg')
-        ax1.plot(a/10, label='apodization function (x 1/10)')
-        ax1.plot(a*(ifg-np.median(ifg)), label='hann apodized ifg')
-        ax1.plot(ifgs, label='smoothed ifg')
-        ax1.legend(loc='lower center', ncol=2)
+        #fig, (ax1, ax2) = plt.subplots(nrows=2, sharex=True)
+        fig, ax2 = plt.subplots(1)
+        #ax1.set_title(fname+' FWD')
+        #ax1.set_xlim(0,config['npt'])
+        #
+        spc = np.fft.fft(ifg)
+        y = np.abs(spc[10:int(len(spc)/2)])
+        wvn = np.fft.fftfreq(int(len(spc)),0.5/o.header['Instrument Parameters']['LWN'])[:int(len(spc)/2)][10:]
+        ax2.plot(wvn, y, label = 'Spectrum lite')
+        ax2.set_xlabel('wavenumber [cm$^{-1}$]')
+        ax2.legend(loc='upper right', ncol=2)
+        #
+        #ax1.plot(ifg, label='original ifg')
+        #ax1.plot(a/10, label='apodization function (x 1/10)')
+        #ax1.plot(a*(ifg-np.median(ifg)), label='hann apodized ifg')
+        #ax1.plot(ifgs, label='smoothed ifg')
+        #ax1.legend(loc='lower center', ncol=2)
+        #
         #ax2.set_xlim(l0/2-fitwindowsize,l0/2+fitwindowsize)
         #ax2.set_ylim(-0.00002,0.0001)
-        ax2.plot(ifgs, label='smoothed ifg')
+        #
+        #ax2.plot(ifg, label='original ifg')
+        #ax2.plot(ifgs, label='smoothed ifg')
+        #
         #ax2.plot(xfit, fitfunc(xfit, *popt), label='linear fit: DIP size = %.3E'%(np.max(np.abs(yfit-fitfunc(xfit, *popt)))))
-        ax2.set_xlabel('ifg index')
-        ax2.legend(loc='upper left', ncol=2)
+        #ax2.set_xlabel('ifg index')
+        #ax2.legend(loc='lower left', ncol=2)
+        #
         #fig.savefig('DIP_live_test_'+fname+'_'+ifgn+'_ifg.png', dpi=200)
         plt.show()
 
