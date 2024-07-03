@@ -11,14 +11,14 @@ Date: 2023/06/01
 
 from __future__ import print_function, division
 import sys, yaml, requests, struct, io
-from PyQt5.QtWidgets import QPushButton, QLabel, QFileDialog
-from matplotlib.backends.backend_qt5agg import FigureCanvas
-from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as NavigationToolbar
-from matplotlib.figure import Figure
 import numpy as np
-
-from matplotlib.backends.qt_compat import QtWidgets
 import matplotlib.pyplot as plt
+from matplotlib.backends.qt_compat import QtWidgets
+#from PyQt5.QtWidgets import QPushButton, QLabel, QFileDialog
+from matplotlib.backends.backend_qtagg import FigureCanvas
+from matplotlib.backends.backend_qtagg import NavigationToolbar2QT as NavigationToolbar
+from matplotlib.figure import Figure
+
 
 
 class ftsreader():
@@ -300,7 +300,7 @@ def load_yaml(yamlfile):
         yamlcontent = yaml.safe_load(f)
     return yamlcontent
 
-def smooth_ifg(o, lwn=15798.022, cutoff=3700, l0=4000):
+def smooth_ifg(o, lwn=15798.022, cutoff=3700, l0=4000, verbose='no'):
     pkl = o.header['Instrument Parameters']['PKL']
     # zero ifg
     ifg0 = o.ifg[int(pkl-l0/2):int(pkl+l0/2)]
@@ -317,7 +317,9 @@ def smooth_ifg(o, lwn=15798.022, cutoff=3700, l0=4000):
     ifga = ifgz*a1
     # get spc via complex fft of ifg
     spc = np.fft.fft(ifga)
-    # calculate wvn axis, LWN is taken from opus header info
+    # calculate wvn axis, default LWN is taken from opus header info
+    #wvn = np.fft.fftfreq(int(len(spc)), 0.5*lwn)[:int(len(spc)/2)]
+    #print(wvn.shape, spc.shape)
     wvn = np.fft.fftfreq(int(len(spc)),0.5/lwn)[:int(len(spc)/2)]
     # determine index of cut-off wavenumber
     l = len(wvn[wvn<cutoff])
@@ -333,7 +335,12 @@ def smooth_ifg(o, lwn=15798.022, cutoff=3700, l0=4000):
     # apply apodization
     ys = a2*ys
     # calculate inverse fft of apodized spc, discarding imaginary part of reverse fft
-    return np.fft.ifft(ys).real*scale+offset, ys, a1, wvn
+    if verbose=='ifg':
+        return np.fft.ifft(ys).real*scale+offset, a1, ifga, ifgz, ifg0, offset, scale
+    elif verbose=='spc':
+        return ys, wvn, spc, a2
+    else:
+        return np.fft.ifft(ys).real*scale+offset, ys, a1, wvn
 
 class Preview125(QtWidgets.QMainWindow):
     """ A preview of measurements with the IFS125 in idle mode. Similar to the common Check Signal 
@@ -363,7 +370,7 @@ class Preview125(QtWidgets.QMainWindow):
         self.label.setStyleSheet("background-color: orange")
 
     def save_data_opus(self):
-        file , check = QFileDialog.getSaveFileName(None, "Save last recorded interferogram as OPUS file", "", "All Files (*)")
+        file , check = QtWidgets.QFileDialog.getSaveFileName(None, "Save last recorded interferogram as OPUS file", "", "All Files (*)")
         if check:
             print('Saving data')
             with open(file, 'wb') as f:
@@ -372,7 +379,7 @@ class Preview125(QtWidgets.QMainWindow):
             print('Not saving anything. Still running = ', self.running)
 
     def save_data(self):
-        file , check = QFileDialog.getSaveFileName(None, "Save smoothed interferogram as ASCII file", "", "All Files (*)")
+        file , check = QtWidgets.QFileDialog.getSaveFileName(None, "Save smoothed interferogram as ASCII file", "", "All Files (*)")
         if check and not self.running:
             print('Saving data in ', file)
             with open(file, 'w') as f:
@@ -416,7 +423,7 @@ class Preview125(QtWidgets.QMainWindow):
                 self.zpd()
                 self.ifg = self.preview.ifg[int(self.zpdindex-self.npt/2):int(self.zpdindex+self.npt/2)]
                 # get smoothed ifg
-                self.ifg_s, self.spc_apodized, self.apo, self.apo_wvn = smooth_ifg(self.preview, lwn=self.config['lwn'],  cutoff=self.config['cutoff'], l0=self.npt)
+                self.ifg_s, self.spc_apodized, self.apo, self.apo_wvn, spc, a2 = smooth_ifg(self.preview, lwn=self.config['lwn'],  cutoff=self.config['cutoff'], l0=self.npt)
                 #self.calc_spc()
                 #print('all 0? ', np.all(self.ifg_s==0))
                 # calc spc
@@ -519,7 +526,7 @@ class Preview125(QtWidgets.QMainWindow):
         self.setCentralWidget(self._main)
         layout = QtWidgets.QVBoxLayout(self._main)
         # setup label
-        self.label = QLabel('Press Check Signal to start', self)
+        self.label = QtWidgets.QLabel('Press Check Signal to start', self)
         self.label.setStyleSheet("background-color: orange")
         layout.addWidget(self.label)
         # setup matplotlib canvases
@@ -556,33 +563,33 @@ class Preview125(QtWidgets.QMainWindow):
         self._timer1.add_callback(self._update)
         self._timer1.stop()        
         # start button
-        self.startButton = QPushButton(self)
+        self.startButton = QtWidgets.QPushButton(self)
         self.startButton.setText('Check Signal')          #text
         self.startButton.setShortcut('Space')  #shortcut key
         self.startButton.clicked.connect(self.startpreview)
         self.startButton.setToolTip('starting timer to perform low-res measurements; Shortcut: [Space]')
         layout.addWidget(self.startButton)
         # stop button
-        self.stopButton = QPushButton(self)
+        self.stopButton = QtWidgets.QPushButton(self)
         self.stopButton.setText('Stop Measurements')
         self.stopButton.setShortcut('Esc')
         self.stopButton.clicked.connect(self.stoppreview)
         self.stopButton.setToolTip('stop the timer and thus end preview measurements; Shortcut: [Esc]')
         layout.addWidget(self.stopButton)
         # save spectra
-        self.saveButton = QPushButton(self)
+        self.saveButton = QtWidgets.QPushButton(self)
         self.saveButton.setText('Save smoothed data (stop meas. first!)')
         self.saveButton.setShortcut('Alt+S')
         self.saveButton.clicked.connect(self.save_data)
         self.saveButton.setToolTip('Save current IFG and smoothed spectrum to file; Shortcut: [Alt+S]')
         layout.addWidget(self.saveButton)
-        self.saveButtono = QPushButton(self)
+        self.saveButtono = QtWidgets.QPushButton(self)
         self.saveButtono.setText('Save interferogram (stop meas. first!)')
         self.saveButtono.clicked.connect(self.save_data_opus)
         self.saveButtono.setToolTip('Save current IFG and smoothed spectrum to file; Shortcut: [Alt+S]')
         layout.addWidget(self.saveButtono)
         # stop button
-        self.shutdownButton = QPushButton(self)
+        self.shutdownButton = QtWidgets.QPushButton(self)
         self.shutdownButton.setText('Send shutdown command (e.g. lamp off)')
         self.shutdownButton.clicked.connect(self.shutdown_measurement)
         self.shutdownButton.setToolTip('Send one last shudown command, defined in config.yaml')
@@ -603,26 +610,87 @@ if __name__ == "__main__":
         config = load_yaml('config.yaml')
         o = ftsreader(fname, getifg=True)
         cutoff = config['cutoff']
-        pkl = o.header['Instrument Parameters']['PKL']
-        l0 = config['npt']
         lwn = config['lwn']
-        ifg = o.ifg[int(pkl-l0/2):int(pkl+l0/2)]
-        ifgs, ys, a, wvn = smooth_ifg(o, lwn=lwn,  cutoff=config['cutoff'], l0=l0)
+        npt = config['npt']
+        l0 = npt
         #
-        #fig, (ax1, ax2) = plt.subplots(nrows=2, sharex=True)
-        fig, ax2 = plt.subplots(1)
+        #pkl = o.header['Instrument Parameters']['PKL']
+        #ifg0 = o.ifg[int(pkl-l0/2):int(pkl+l0/2)]
+        #ifg_s, spc_apodized, a1, wvn =  smooth_ifg(o, lwn=lwn, cutoff=cutoff, l0=npt, verbose='no')
+        ifg_s, a1, ifga, ifgz, ifg0, offset, scale = smooth_ifg(o, lwn=lwn, cutoff=cutoff, l0=npt, verbose='ifg')
+        #
+        #pkl = o.header['Instrument Parameters']['PKL']
+        #l0 = config['npt']
+        #lwn = config['lwn']
+        #ifg = o.ifg[int(pkl-l0/2):int(pkl+l0/2)]
+        #ifgs, ys, a, wvn = smooth_ifg(o, lwn=lwn,  cutoff=config['cutoff'], l0=l0)
+        #
+        
+        from scipy.optimize import curve_fit
+        fitfunc = lambda x, a, b: a*x+b
+
+        y = ifg_s
+        x = np.arange(len(y))
+        fitwindowsize = 200
+        zpdblock = 40
+        center = int(len(y)/2)
+        sel1 = (x>center-fitwindowsize/2) & (x<center+fitwindowsize/2)
+        x0, y0 = x[sel1], y[sel1]
+        sel2 = (x<center-zpdblock/2) & (x>center+zpdblock/2)
+        sel = sel1 | sel2
+        x1, y1 = x[sel], y[sel]
+        popt, pcov = curve_fit(fitfunc, x1, y1, p0=[1.0,1.0])
+        x2, y2 = x1, y0-fitfunc(x1, *popt)
+        if np.max(y2)>=np.max(np.abs(y2)):
+            # 'positive' dip
+            dip = np.max(y2)
+        else:
+            # negative dip
+            dip = np.min(y2)
+        print(f"DIP amplitude: {dip:.5f} ‰")
+        
+        plt.figure(); plt.plot(x,y); plt.plot(x1, fitfunc(x1, *popt))
+        
+        plt.figure(); plt.plot(x,y); plt.plot(x1,y1); plt.plot(x2,y2)
+        
+        fig, (ax1, ax2) = plt.subplots(nrows=2, sharex=True)
+        ax1.plot(ifg0)
+        ax2.plot(ifg_s)
+        
+        spc = np.abs(np.fft.fft(ifg0))
+        wvn = np.fft.fftfreq(int(len(spc)),0.5/lwn)[:int(len(spc)/2)]
+        print(spc.shape, wvn.shape, wvn[0], wvn[1], wvn[-1])
+        
+        fig, ax1 = plt.subplots(nrows=1)
+        ax1.plot(wvn, spc[:int(len(spc)/2)])
+        
+        #fig, ax2 = plt.subplots(1)
         #ax1.set_title(fname+' FWD')
         #ax1.set_xlim(0,config['npt'])
         #
-        spc = np.fft.fft(ifg)
-        y = np.abs(spc[10:int(len(spc)/2)])
-        wvn = np.fft.fftfreq(int(len(spc)),0.5/o.header['Instrument Parameters']['LWN'])[:int(len(spc)/2)][10:]
-        ax2.plot(wvn, y, label = 'Spectrum lite')
-        ax2.set_xlabel('wavenumber [cm$^{-1}$]')
-        ax2.legend(loc='upper right', ncol=2)
+        #spc = np.fft.fft(ifg0)
+        #y = np.abs(spc[:int(len(spc)/2)])
+        #wvn = np.fft.fftfreq(int(len(spc)),0.5/o.header['Instrument Parameters']['LWN'])[:int(len(spc)/2)][10:]
+        #wvn = np.fft.fftfreq(int(len(spc)),o.header['Instrument Parameters']['LWN'])[10:int(len(spc)/2)]
+        #print(wvn.shape, y.shape)
+        #ax2.plot(wvn, y, label = 'Spectrum lite')
+        #ax2.set_xlabel('wavenumber [cm$^{-1}$]')
+        #ax2.legend(loc='upper right', ncol=2)
         #
         #ax1.plot(ifg, label='original ifg')
         #ax1.plot(a/10, label='apodization function (x 1/10)')
+        
+        #w = np.ifft.fftfreq()
+        #print(int(len(spc)*2), 0.5*lwn, int(len(spc)/2))
+        #w = np.fft.fftfreq(int(len(spc)*2), 0.5*lwn)[:int(len(spc)*2/2)]
+        
+        #print(wvn.shape, w.shape, spc.shape, a2.shape, spc_apodized.shape)
+        #fig, (ax1, ax2) = plt.subplots(nrows=2, sharex=True)
+        #ax1.plot(w, spc/np.max(spc), label = 'Spectrum lite (scaled to max 1)')
+        #ax1.plot(w, a2/np.max(a2), label='apodization function (scaled to max 1)')
+        #ax1.plot(w, spc_apodized/np.max(spc_apodized), label='apodized spectrum lite (scaled to max 1)')
+        
+       
         #ax1.plot(a*(ifg-np.median(ifg)), label='hann apodized ifg')
         #ax1.plot(ifgs, label='smoothed ifg')
         #ax1.legend(loc='lower center', ncol=2)
