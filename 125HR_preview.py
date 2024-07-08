@@ -471,7 +471,7 @@ class Preview125(QtWidgets.QMainWindow):
                 self.zpd()
                 self.ifg = self.preview.ifg[int(self.zpdindex-self.npt/2):int(self.zpdindex+self.npt/2)]
                 # get smoothed ifg
-                self.ifg_s, self.spc_apodized, self.apo, self.apo_wvn, spc, a2, offset = smooth_ifg(self.preview, lwn=self.config['lwn'],  cutoff=self.config['cutoff'], l0=self.npt)
+                self.ifg_s, self.spc_apodized, self.apo, self.apo_wvn, offset = smooth_ifg(self.preview, lwn=self.config['lwn'],  cutoff=self.config['cutoff'], l0=self.npt)
                 #self.calc_spc()
                 #print('all 0? ', np.all(self.ifg_s==0))
                 # calc spc
