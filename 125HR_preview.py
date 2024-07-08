@@ -301,6 +301,15 @@ def load_yaml(yamlfile):
     return yamlcontent
 
 def smooth_ifg(o, lwn=15798.022, cutoff=3700, l0=4000, verbose='no'):
+    ''' Taking file from spectrometer, either via commandline input or as data stream from ifs125. Then the following is done:
+        - remove offset of ifg by substracting median
+        - calculate scale of ifg to apply to smoothed ifg later
+        - apodize ifg by hanning window
+        - do complex fft
+        - set everything in spectrum larger than cuttoff wavenumber to complex 0 by multipying hanning window
+        - calculate inverse fft (-> smoothed ifg) and return with scale and offset re-applied.
+    different verbosity levels to return different steps of this program for introspection.
+    '''
     pkl = o.header['Instrument Parameters']['PKL']
     # zero ifg
     ifg0 = o.ifg[int(pkl-l0/2):int(pkl+l0/2)]
@@ -340,7 +349,46 @@ def smooth_ifg(o, lwn=15798.022, cutoff=3700, l0=4000, verbose='no'):
     elif verbose=='spc':
         return ys, wvn, spc, a2
     else:
-        return np.fft.ifft(ys).real*scale+offset, ys, a1, wvn
+        return np.fft.ifft(ys).real*scale+offset, ys, a1, wvn, offset
+
+def calc_dip_from_fit(ifgs, fitwindowsize=200, zpdblock=40, return_fits=False):
+    '''Select a subset of points around zpd and fit a linear function to it. 
+    The immidiate region around zpd is blocked out as to not fit the dip itself (zpd +- zpdplock/2 points).'''
+    from scipy.optimize import curve_fit
+    fitfunc = lambda x, a, b: a*x+b
+    y = ifg_s
+    x = np.arange(len(y))
+    center = int(len(y)/2)
+    sel1 = (x>center-fitwindowsize/2) & (x<center+fitwindowsize/2)
+    x0, y0 = x[sel1], y[sel1]
+    sel2 = (x<center-zpdblock/2) & (x>center+zpdblock/2)
+    sel = sel1 | sel2
+    x1, y1 = x[sel], y[sel]
+    popt, pcov = curve_fit(fitfunc, x1, y1, p0=[1.0,1.0])
+    x2, y2 = x1, y0-fitfunc(x1, *popt)
+    if np.max(y2)>=np.max(np.abs(y2)):
+        # 'positive' dip
+        dip = np.max(y2)
+    else:
+        # negative dip
+        dip = np.min(y2)
+    print(f"DIP amplitude from fit: {dip:.5f} ‰")
+    if return_fits:
+        return dip, x1, fitfunc(x1, *popt)
+    else:
+        return dip
+
+def calc_dip_from_minmax(ifgs, offset, fitwindowsize=200):
+    ''' Calculate the minimum or maximum of the smoothed ifg +-fitwindowsize points around zpd.'''
+    print('\n\nsome error in the dip calculation using minmax... do not trust\n')
+    sifgs = ifgs[int(len(ifgs/2)-fitwindowsize/2):int(len(ifgs/2)+fitwindowsize/2)]
+    sifgs = sifgs-offset
+    if np.abs(np.max(sifgs))>=np.abs(np.min(sifgs)):
+        dip = np.max(sifgs)
+    else:
+        dip = np.min(sifgs)
+    print(f"DIP amplitude from minmax: {dip:.5f} ‰")
+    return dip
 
 class Preview125(QtWidgets.QMainWindow):
     """ A preview of measurements with the IFS125 in idle mode. Similar to the common Check Signal 
@@ -423,18 +471,18 @@ class Preview125(QtWidgets.QMainWindow):
                 self.zpd()
                 self.ifg = self.preview.ifg[int(self.zpdindex-self.npt/2):int(self.zpdindex+self.npt/2)]
                 # get smoothed ifg
-                self.ifg_s, self.spc_apodized, self.apo, self.apo_wvn, spc, a2 = smooth_ifg(self.preview, lwn=self.config['lwn'],  cutoff=self.config['cutoff'], l0=self.npt)
+                self.ifg_s, self.spc_apodized, self.apo, self.apo_wvn, spc, a2, offset = smooth_ifg(self.preview, lwn=self.config['lwn'],  cutoff=self.config['cutoff'], l0=self.npt)
                 #self.calc_spc()
                 #print('all 0? ', np.all(self.ifg_s==0))
                 # calc spc
                 self.spc = np.fft.fft(self.ifg)
                 self.wvn = np.fft.fftfreq(int(len(self.spc)),0.5/self.preview.header['Instrument Parameters']['LWN'])[:int(len(self.spc)/2)]
-                #
-                if np.abs(np.max(self.ifg_s))>=np.abs(np.min(self.ifg_s)):
-                    dip = np.max(self.ifg_s)
-                else:
-                    dip = np.min(self.ifg_s)
-                self.label.setText(f"DIP amplitude: {dip:.5f} ‰")
+                # calculate dip my min max of smoothed ifg
+                #dip1 = calc_dip_from_minmax(self.ifg_s, offset)
+                # calculate dip by substracting a fitted linear function around zpd
+                dip2 = calc_dip_from_fit(self.ifg_s, fitwindowsize=self.config['fitwindowsize'], zpdblock=self.config['blockzpd'])
+                #self.label.setText(f"DIP amplitude (minmax): {dip1:.5f} ‰     ")
+                self.label.setText(f"DIP amplitude (fit): {dip2:.5f} ‰")
                 self.label.setStyleSheet("background-color: white")
             else: pass
         else:
@@ -613,99 +661,25 @@ if __name__ == "__main__":
         lwn = config['lwn']
         npt = config['npt']
         l0 = npt
-        #
-        #pkl = o.header['Instrument Parameters']['PKL']
-        #ifg0 = o.ifg[int(pkl-l0/2):int(pkl+l0/2)]
-        #ifg_s, spc_apodized, a1, wvn =  smooth_ifg(o, lwn=lwn, cutoff=cutoff, l0=npt, verbose='no')
-        ifg_s, a1, ifga, ifgz, ifg0, offset, scale = smooth_ifg(o, lwn=lwn, cutoff=cutoff, l0=npt, verbose='ifg')
-        #
-        #pkl = o.header['Instrument Parameters']['PKL']
-        #l0 = config['npt']
-        #lwn = config['lwn']
-        #ifg = o.ifg[int(pkl-l0/2):int(pkl+l0/2)]
-        #ifgs, ys, a, wvn = smooth_ifg(o, lwn=lwn,  cutoff=config['cutoff'], l0=l0)
-        #
-        
-        from scipy.optimize import curve_fit
-        fitfunc = lambda x, a, b: a*x+b
 
-        y = ifg_s
-        x = np.arange(len(y))
-        fitwindowsize = 200
-        zpdblock = 40
-        center = int(len(y)/2)
-        sel1 = (x>center-fitwindowsize/2) & (x<center+fitwindowsize/2)
-        x0, y0 = x[sel1], y[sel1]
-        sel2 = (x<center-zpdblock/2) & (x>center+zpdblock/2)
-        sel = sel1 | sel2
-        x1, y1 = x[sel], y[sel]
-        popt, pcov = curve_fit(fitfunc, x1, y1, p0=[1.0,1.0])
-        x2, y2 = x1, y0-fitfunc(x1, *popt)
-        if np.max(y2)>=np.max(np.abs(y2)):
-            # 'positive' dip
-            dip = np.max(y2)
-        else:
-            # negative dip
-            dip = np.min(y2)
-        print(f"DIP amplitude: {dip:.5f} ‰")
+        ifg_s, a1, ifga, ifgz, ifg0, offset, scale = smooth_ifg(o, lwn=lwn, cutoff=cutoff, l0=npt, verbose='ifg')
+
+        dip2, xfit, yfit = calc_dip_from_fit(ifg_s, fitwindowsize=200, zpdblock=40, return_fits=True)
         
-        plt.figure(); plt.plot(x,y); plt.plot(x1, fitfunc(x1, *popt))
-        
-        plt.figure(); plt.plot(x,y); plt.plot(x1,y1); plt.plot(x2,y2)
-        
-        fig, (ax1, ax2) = plt.subplots(nrows=2, sharex=True)
-        ax1.plot(ifg0)
-        ax2.plot(ifg_s)
-        
+        # plot ifg
+        fig0, ax01 = plt.subplots()
+        #ax01.set_title(f"DIP amplitude (minmax): {dip1:.5f} ‰     ")
+        ax01.set_title(f"DIP amplitude (fit): {dip2:.5f} ‰")
+        ax01.plot(ifg0, label='original ifg')
+        ax01.plot(ifg_s, label='smoothed ifg')
+        ax01.plot(xfit, yfit, label='background fit')
+
+        # plot spc
         spc = np.abs(np.fft.fft(ifg0))
         wvn = np.fft.fftfreq(int(len(spc)),0.5/lwn)[:int(len(spc)/2)]
-        print(spc.shape, wvn.shape, wvn[0], wvn[1], wvn[-1])
+        fig, ax21 = plt.subplots(nrows=1)
+        ax21.plot(wvn[20:], spc[20:int(len(spc)/2)])
         
-        fig, ax1 = plt.subplots(nrows=1)
-        ax1.plot(wvn, spc[:int(len(spc)/2)])
-        
-        #fig, ax2 = plt.subplots(1)
-        #ax1.set_title(fname+' FWD')
-        #ax1.set_xlim(0,config['npt'])
-        #
-        #spc = np.fft.fft(ifg0)
-        #y = np.abs(spc[:int(len(spc)/2)])
-        #wvn = np.fft.fftfreq(int(len(spc)),0.5/o.header['Instrument Parameters']['LWN'])[:int(len(spc)/2)][10:]
-        #wvn = np.fft.fftfreq(int(len(spc)),o.header['Instrument Parameters']['LWN'])[10:int(len(spc)/2)]
-        #print(wvn.shape, y.shape)
-        #ax2.plot(wvn, y, label = 'Spectrum lite')
-        #ax2.set_xlabel('wavenumber [cm$^{-1}$]')
-        #ax2.legend(loc='upper right', ncol=2)
-        #
-        #ax1.plot(ifg, label='original ifg')
-        #ax1.plot(a/10, label='apodization function (x 1/10)')
-        
-        #w = np.ifft.fftfreq()
-        #print(int(len(spc)*2), 0.5*lwn, int(len(spc)/2))
-        #w = np.fft.fftfreq(int(len(spc)*2), 0.5*lwn)[:int(len(spc)*2/2)]
-        
-        #print(wvn.shape, w.shape, spc.shape, a2.shape, spc_apodized.shape)
-        #fig, (ax1, ax2) = plt.subplots(nrows=2, sharex=True)
-        #ax1.plot(w, spc/np.max(spc), label = 'Spectrum lite (scaled to max 1)')
-        #ax1.plot(w, a2/np.max(a2), label='apodization function (scaled to max 1)')
-        #ax1.plot(w, spc_apodized/np.max(spc_apodized), label='apodized spectrum lite (scaled to max 1)')
-        
-       
-        #ax1.plot(a*(ifg-np.median(ifg)), label='hann apodized ifg')
-        #ax1.plot(ifgs, label='smoothed ifg')
-        #ax1.legend(loc='lower center', ncol=2)
-        #
-        #ax2.set_xlim(l0/2-fitwindowsize,l0/2+fitwindowsize)
-        #ax2.set_ylim(-0.00002,0.0001)
-        #
-        #ax2.plot(ifg, label='original ifg')
-        #ax2.plot(ifgs, label='smoothed ifg')
-        #
-        #ax2.plot(xfit, fitfunc(xfit, *popt), label='linear fit: DIP size = %.3E'%(np.max(np.abs(yfit-fitfunc(xfit, *popt)))))
-        #ax2.set_xlabel('ifg index')
-        #ax2.legend(loc='lower left', ncol=2)
-        #
-        #fig.savefig('DIP_live_test_'+fname+'_'+ifgn+'_ifg.png', dpi=200)
         plt.show()
 
 

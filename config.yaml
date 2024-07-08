@@ -15,6 +15,10 @@ spc_plot_xlim: [3000, 11000]
 
 npt: 2000 # number of ifg points to be used around zpd
 
+fitwindowsize: 200 # number of points around zpd to fit smoothed ifg for dip calculation
+
+blockzpd: 40 # number of points to block out dip to fit baseline in smoothed ifg
+
 br: {
     ip: '10.10.0.1', # ip of the ifs
     # the preview command can be obtained from Opus: While running Check signal in the preferred preview mode, check menu Measure -> Optis Setup & Service -> Optic Communications and copy-paste the relevant command series here
