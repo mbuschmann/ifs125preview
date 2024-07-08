@@ -356,7 +356,7 @@ def calc_dip_from_fit(ifgs, fitwindowsize=200, zpdblock=40, return_fits=False):
     The immidiate region around zpd is blocked out as to not fit the dip itself (zpd +- zpdplock/2 points).'''
     from scipy.optimize import curve_fit
     fitfunc = lambda x, a, b: a*x+b
-    y = ifg_s
+    y = ifgs
     x = np.arange(len(y))
     center = int(len(y)/2)
     sel1 = (x>center-fitwindowsize/2) & (x<center+fitwindowsize/2)
